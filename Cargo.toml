@@ -1,0 +1,9 @@
+[package]
+name = "gh_zday_countdown"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono = "0.4.41"
+serenity = "0.12.4"
+tokio = { version = "1.21.2", features = ["macros", "rt-multi-thread"] }
