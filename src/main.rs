@@ -1,7 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::env;
 
-use chrono::{NaiveTime, DateTime, Datelike, Months, Utc};
+use chrono::{NaiveTime, DateTime, Datelike, Months, Utc, Local};
 use serenity::builder::ExecuteWebhook;
 use serenity::http::Http;
 use serenity::model::webhook::Webhook;
@@ -13,7 +13,7 @@ const IRL_GH_ORIGIN: i64 = 1739039409; // The IRL timestamp when GH Jan 1st, 200
 const DAY_BEGIN: NaiveTime = NaiveTime::from_hms_opt(0, 0, 0)
 .expect("Unable to get beginning of day");
 
-fn get_seconds_until_zday() -> (i64, i64) {
+fn get_gh_timestamps() -> (i64, i64, i64) {
     let current_time: i64 = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Can't get time")
@@ -37,30 +37,43 @@ fn get_seconds_until_zday() -> (i64, i64) {
 
     let gh_seconds_until_next_zday: i64 = gh_zday_month.timestamp() - gh_current_timestamp;
     let irl_timestamp_next_zday: i64 = current_time + (gh_seconds_until_next_zday / GH_TIME_SPEED_MULTIPLIER);
-    (irl_timestamp_next_zday - current_time, irl_timestamp_next_zday)
+    (gh_current_timestamp, irl_timestamp_next_zday - current_time, irl_timestamp_next_zday)
 }
 
 #[tokio::main]
 async fn main() {
-    let timestamps: (i64, i64) = get_seconds_until_zday();
-    let seconds_until: i64 = timestamps.0;
-    let irl_zday_timestamp: i64 = timestamps.1;
+    let args_vec = env::args().collect::<Vec<String>>();
+    let timestamps: (i64, i64, i64) = get_gh_timestamps();
+    let current_server_clock: i64 = timestamps.0;
+    let seconds_until: i64 = timestamps.1;
+    let irl_zday_timestamp: i64 = timestamps.2;
+    let message = format!("Zero-day is near: <t:{}:F>", irl_zday_timestamp);
 
-    // // If zero-day is near, message the server
-    if seconds_until < HRS_48 {
-        // Login with a bot token from the environment
-        let webhook_url = env::var("WEBHOOK").expect("Expected a token in the environment");
+    // If alerting
+    if args_vec.contains(&String::from("-a")) || args_vec.contains(&String::from("--alert")) {
+        // If zero-day is near, message the server
+        if seconds_until < HRS_48 {
+            // Login with a bot token from the environment
+            let webhook_url = env::var("WEBHOOK").expect("Expected a token in the environment");
 
-        // You don't need a token when you are only dealing with webhooks.
-        let http = Http::new("");
-        let webhook = Webhook::from_url(&http, webhook_url.as_str())
-            .await
-            .expect("Replace the webhook with your own");
+            // You don't need a token when you are only dealing with webhooks.
+            let http = Http::new("");
+            let webhook = Webhook::from_url(&http, webhook_url.as_str())
+                .await
+                .expect("Replace the webhook with your own");
 
-        let message = format!("Zero-day is near: <t:{}:F>", irl_zday_timestamp);
-        let builder = ExecuteWebhook::new().content(message);
-        webhook.execute(&http, false, builder).await.expect("Could not execute webhook.");
+            let builder = ExecuteWebhook::new().content(message);
+            webhook.execute(&http, false, builder).await.expect("Could not execute webhook.");
+        }
+        return
     }
 
-    println!("<t:{}:F>", irl_zday_timestamp);
+    let zerday_datetime: DateTime<Local> = DateTime::from_timestamp(irl_zday_timestamp, 0)
+        .expect("Unable to convert zerday timestamp").into();
+    let server_datetime: DateTime<Utc> = DateTime::from_timestamp(current_server_clock, 0)
+        .expect("Unable to convert current server clock").into();
+    println!("{}", message);
+    println!();
+    println!("(local time) Zero-day is near: {}", zerday_datetime.format("%Y/%m/%d %H:%M:%S"));
+    println!("(local time) In-game time:     {}", server_datetime.format("%Y/%m/%d %H:%M:%S"));
 }
