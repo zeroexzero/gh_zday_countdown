@@ -1,0 +1,10 @@
+services:
+  gh_zday_countdown:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - ./src:/opt/gh_zday_countdown/src
+    entrypoint: ["/bin/sh", "-c", "cargo run --release"]
