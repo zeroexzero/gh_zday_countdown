@@ -1,7 +1,8 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::env;
 
-use chrono::{NaiveTime, DateTime, Datelike, Months, Utc, Local};
+use chrono::{NaiveTime, DateTime, Datelike, Months, Utc };
+use chrono_tz::Tz;
 use serenity::builder::ExecuteWebhook;
 use serenity::http::Http;
 use serenity::model::webhook::Webhook;
@@ -59,6 +60,17 @@ async fn main() {
             .expect(format!("ALERT_ENABLED is present but not a bool. Got {}", val).as_str()),
         Err(_) => false,
     };
+    let tz_str = match env::var("TZ") {
+        Ok(val) => val,
+        Err(_) => String::from("UTC"),
+    };
+    let tz: Tz = match tz_str.parse::<Tz>() {
+        Ok(tz) => tz,
+        Err(_) => {
+            eprintln!("Invalid timezone: {}. Defaulting to UTC", tz_str);
+            String::from("UTC").parse::<Tz>().expect("Unable to get UTC timezone")
+        }
+    };
 
     let timestamps: (i64, i64, i64) = get_gh_timestamps(irl_gh_origin);
     let current_server_clock: i64 = timestamps.0;
@@ -66,14 +78,14 @@ async fn main() {
     let irl_zday_timestamp: i64 = timestamps.2;
     let message: String = format!("Zero-day is near: <t:{}:F>", irl_zday_timestamp);
 
-    let zerday_datetime: DateTime<Local> = DateTime::from_timestamp(irl_zday_timestamp, 0)
-        .expect("Unable to convert zerday timestamp").into();
+    let zerday_datetime: DateTime<Tz> = DateTime::from_timestamp(irl_zday_timestamp, 0)
+        .expect("Unable to convert zerday timestamp").with_timezone(&tz).into();
     let server_datetime: DateTime<Utc> = DateTime::from_timestamp(current_server_clock, 0)
         .expect("Unable to convert current server clock").into();
     println!("{}", message);
     println!();
-    println!("(local time) Zero-day is near: {}", zerday_datetime.format("%Y/%m/%d %H:%M:%S"));
-    println!("(local time) In-game time:     {}", server_datetime.format("%Y/%m/%d %H:%M:%S"));
+    println!("(local time) Zero-day: {}", zerday_datetime.format("%Y/%m/%d %H:%M:%S"));
+    println!("In-game time:          {}", server_datetime.format("%Y/%m/%d %H:%M:%S"));
 
     // If zero-day is near, message the server
     let would_alert: bool = seconds_until < alert_threshold;

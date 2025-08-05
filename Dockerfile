@@ -13,9 +13,11 @@ RUN rm -rf src/*
 
 # Environment setup
 WORKDIR /opt/gh_zday_countdown
-ENV WEBHOOK=REPLACE_ME
-ENV ALERT_THRESHOLD=86400
+ENV TZ="UTC"
 ENV IRL_GH_ORIGIN=1739039409
+ENV WEBHOOK=REPLACE_ME
+ENV ALERT_ENABLED=false
+ENV ALERT_THRESHOLD=86400
 
 # Copy necessary runtime & source files
 COPY Cargo.lock ./Cargo.lock
